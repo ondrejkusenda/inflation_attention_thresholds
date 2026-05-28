@@ -56,7 +56,7 @@ def _draw_scatter_fit(ax, df, res, index, is_after=False, gamma_pre_ref=None):
     # Reference pre-peak threshold on the post-peak panel.
     if is_after and gamma_pre_ref is not None:
         ax.axvline(gamma_pre_ref, color=C_THR_PRE, linestyle=(0, (5, 3)),
-                   alpha=0.7, lw=1.5, zorder=2,
+                   alpha=0.7, lw=0.8, zorder=2,
                    label=fr"$\gamma^{{pre}}$ ({gamma_pre_ref:.2f})")
 
     rejected = res.get("p_value_asym", 1.0) <= SIGNIFICANCE_LEVEL
@@ -145,11 +145,11 @@ def plot_threshold_results(country, index, prep, results):
 
     if "threshold" in res_before and rejected_before:
         ax2.axhline(y=res_before["threshold"], color=C_THR_PRE,
-                    linestyle="dashed", alpha=0.85,
+                    linestyle="dashed", alpha=0.85, lw=2,
                     label=fr"$\gamma^{{pre}}$ ({res_before['threshold']:.2f})")
     if "threshold" in res_after and rejected_after:
         ax2.axhline(y=res_after["threshold"], color=C_THR_POST,
-                    linestyle="dashed", alpha=0.85,
+                    linestyle="dashed", alpha=0.85, lw=2,
                     label=fr"$\gamma^{{post}}$ ({res_after['threshold']:.2f})")
 
     ax2.set_ylabel("Inflation (y-o-y %)", color=C_INFLATION)
@@ -330,24 +330,24 @@ def plot_timeseries_single(
     fig, ax1 = plt.subplots(figsize=figsize)
 
     ax1.plot(dataset["TIME"], dataset["INDEX"],
-             label=f"{index} index", color=C_INDEX, lw=2)
+             label=f"{index} index", color=C_INDEX, lw=1.5)
     ax1.set_xlabel("Time")
     ax1.set_ylabel(f"{index} index", color=C_INDEX)
     ax1.tick_params(axis="y", labelcolor=C_INDEX)
 
     ax2 = ax1.twinx()
     ax2.plot(dataset["TIME"], dataset["INFLATION"],
-             label="Inflation", color=C_INFLATION, lw=2)
+             label="Inflation", color=C_INFLATION, lw=1.5)
     ax2.axvline(x=peak, color=C_PEAK, linestyle="dotted", alpha=0.8,
                 label=f"Peak ({str(peak)[:7]})")
 
     if show_thresholds and "threshold" in res_pre and rej_pre:
         ax2.axhline(res_pre["threshold"], color=C_THR_PRE,
-                    linestyle="dashed", alpha=0.85, lw=1.8,
+                    linestyle="dashed", alpha=0.85, lw=2,
                     label=fr"$\gamma^{{pre}}$ ({res_pre['threshold']:.2f})")
     if show_thresholds and "threshold" in res_post and rej_post:
         ax2.axhline(res_post["threshold"], color=C_THR_POST,
-                    linestyle="dashed", alpha=0.85, lw=1.8,
+                    linestyle="dashed", alpha=0.85, lw=2,
                     label=fr"$\gamma^{{post}}$ ({res_post['threshold']:.2f})")
 
     ax2.set_ylabel("Inflation (y-o-y %)", color=C_INFLATION)

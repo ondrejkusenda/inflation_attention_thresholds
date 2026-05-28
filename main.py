@@ -22,7 +22,6 @@ import sys
 
 import matplotlib.pyplot as plt
 
-# Make the ``src/`` modules importable regardless of the launch directory.
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
