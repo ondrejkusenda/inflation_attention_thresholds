@@ -86,8 +86,7 @@ inflation_attention_thresholds/
 
 ## Data
 
-The three input files share the schema `GEO` / `TIME` / `VALUE` (details in
-`data/README.md`). As in the paper:
+The three input files share the schema `GEO` / `TIME` / `VALUE`. As in the paper:
 
 - **Inflation** is year-on-year headline inflation from the OECD Main Economic
   Indicators database (HICP for Eurozone members; national CPI for the US, UK,
