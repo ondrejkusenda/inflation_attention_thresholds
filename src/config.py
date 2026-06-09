@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 START_DATE = "2014-01-01"   # First month included in the sample.
 MAX_DATE = "2025-12-01"     # Last month included in the sample.
 DEFAULT_TRIM = 0.10         # Trimming fraction for the threshold candidate grid.
-DEFAULT_N_BOOTSTRAP = 1999  # Bootstrap / Monte-Carlo replications for p-values.
+DEFAULT_N_BOOTSTRAP = 5000  # Bootstrap / Monte-Carlo replications for p-values.
 SIGNIFICANCE_LEVEL = 0.10   # Level at which the Hansen / Chow tests reject.
 
 # ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ C_INDEX = NBS["dark_blue"]        # Attention-index series / scatter fit.
 C_INFLATION = NBS["light_blue"]   # Inflation series.
 C_SCATTER = NBS["grey"]           # Scatter points.
 C_THR_PRE = NBS["gold"]           # Pre-peak threshold.
-C_THR_POST = NBS["brown"]         # Post-peak threshold.
+C_THR_POST = NBS["wine"]         # Post-peak threshold.
 C_PEAK = NBS["grey"]              # Peak vertical line.
 C_FIT_LOW = NBS["light_blue"]     # Below-threshold regime fit.
 C_FIT_HIGH = NBS["dark_blue"]     # Above-threshold regime fit.

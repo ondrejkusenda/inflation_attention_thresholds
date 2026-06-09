@@ -101,6 +101,14 @@ def main() -> None:
         )
         plt.close("all")
 
+    plot_timeseries_single(
+        country="United States", index="GOOGLE",
+        countries_language=COUNTRIES_LANGUAGE,
+        eurostat_data=eurostat_data, google_data=google_data,
+        save_path=os.path.join(SINGLE_DIR, f"US_timeseries.pdf"),
+    )
+    plt.close("all")
+
     print("\nReplication complete. See the results/ directory.")
 
 

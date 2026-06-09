@@ -72,9 +72,9 @@ def prepare_data(
             (google_data["GEO"] == country_id) & (google_data["TIME"] >= start)
         ]
         if country_id == "BE":
-            # Belgium has two language queries; average them per month.
+            # Belgium has two language queries; sum them per month.
             data_index = (
-                google_window.groupby("TIME")["VALUE"].mean().reset_index()
+                google_window.groupby("TIME")["VALUE"].sum().reset_index()
             )
         else:
             data_index = google_window.reset_index()
