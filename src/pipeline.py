@@ -20,7 +20,7 @@ from config import (
     DEFAULT_TRIM, DEFAULT_N_BOOTSTRAP,
 )
 from preprocessing import prepare_data
-from threshold_model import run_threshold_analysis
+from threshold_model import run_threshold_analysis, habituation_regression
 from plotting import plot_threshold_results
 
 
@@ -128,6 +128,7 @@ def run_full_pipeline(
         "inf_mean": prep["out_data"].get("inf_mean"),
         "inf_mean_pre-peak": prep["out_data"].get("inf_mean_pre-peak"),
         "inf_mean_post-peak": prep["out_data"].get("inf_mean_post-peak"),
+        "inf_mean_pre_2021": prep["out_data"].get("inf_mean_pre_2021"),
 
         # Stacked Chow test (gateway).
         "chow_f": ch.get("f_chow"),
@@ -257,4 +258,137 @@ def run_all_sources(
     print(f"\nSaved GOOGLE summary -> {google_path}")
     print(f"Saved GDELT summary -> {gdelt_path}")
 
+    # Cross-country habituation regression (section 3.1): regress the
+    # identified pre-peak threshold on each country's pre-2021 mean inflation.
+    habituation = {}
+    for source_name in ("GOOGLE", "GDELT"):
+        rows = results_by_source[source_name]
+        gammas, means, labels = [], [], []
+        for row in rows:
+            g = row.get("threshold_before")
+            m = row.get("inf_mean_pre_2021")
+            if g is None or m is None:
+                continue
+            gammas.append(g)
+            means.append(m)
+            labels.append(row.get("country"))
+        habituation[source_name] = habituation_regression(gammas, means, labels)
+
+    hab_path = os.path.join(output_dir, "habituation.json")
+    with open(hab_path, "w") as f:
+        json.dump(habituation, f, default=str, indent=4)
+    print(f"Saved habituation regression -> {hab_path}")
+    for source_name, res in habituation.items():
+        if "error" in res:
+            print(f"  {source_name}: {res['error']}")
+        else:
+            print(f"  {source_name}: beta={res['beta']:+.2f} "
+                  f"(t={res['t_stat']:+.2f}, n={res['n']}, R2={res['r_squared']:.2f})")
+
+    results_by_source["_habituation"] = habituation
     return results_by_source
+
+
+def run_peak_sensitivity(
+    country,
+    index,
+    countries_language,
+    eurostat_data,
+    google_data=None,
+    gdelt_data=None,
+    offsets=(-2, -1, 0, 1, 2),
+    trim=DEFAULT_TRIM,
+    n_bootstrap=DEFAULT_N_BOOTSTRAP,
+    output_dir=None,
+):
+    """Peak-date sensitivity analysis (Appendix A.9).
+
+    Re-runs the full threshold analysis with the pre/post split shifted by
+    each value in ``offsets`` (in observed months) relative to the inflation
+    peak, and reports how the estimated thresholds and their gap move. This
+    reproduces results such as "+2 months flips the US sign", where the sign
+    of Δ = γ_post − γ_pre reverses under a shifted split.
+
+    Parameters
+    ----------
+    country : str
+        Country name.
+    index : {"GOOGLE", "GDELT"}
+        Attention source.
+    countries_language : dict
+        Country metadata.
+    eurostat_data : pandas.DataFrame
+        Inflation data.
+    google_data, gdelt_data : pandas.DataFrame, optional
+        Attention-index data.
+    offsets : iterable of int, optional
+        Month shifts applied to the split point. Defaults to ``(-2, -1, 0, 1, 2)``.
+    trim : float, optional
+        Trimming fraction.
+    n_bootstrap : int, optional
+        Replications for the Hansen p-values.
+    output_dir : str, optional
+        If given, the per-offset rows are written to
+        ``<output_dir>/sensitivity/<source>_<country>.json``.
+
+    Returns
+    -------
+    list of dict
+        One row per offset with peak date, both thresholds, their rejection
+        flags, Δ, and the sign of Δ.
+    """
+    source = index.lower()
+    rows = []
+
+    for off in offsets:
+        prep = prepare_data(
+            country=country, index=index,
+            countries_language=countries_language,
+            eurostat_data=eurostat_data,
+            google_data=google_data, gdelt_data=gdelt_data,
+            peak_offset=off,
+        )
+        res = run_threshold_analysis(prep, trim=trim, n_bootstrap=n_bootstrap)
+
+        bp = res.get("before_peak", {}) or {}
+        ap = res.get("after_peak", {}) or {}
+        dl = res.get("delta", {}) or {}
+
+        g_pre = bp.get("threshold")
+        g_post = ap.get("threshold")
+        reject_pre = bp.get("p_value_asym", 1.0) <= SIGNIFICANCE_LEVEL
+        reject_post = ap.get("p_value_asym", 1.0) <= SIGNIFICANCE_LEVEL
+
+        delta = None
+        if g_pre is not None and g_post is not None:
+            delta = float(g_post - g_pre)
+        delta_sign = None if delta is None else ("+" if delta > 0 else
+                                                 ("-" if delta < 0 else "0"))
+
+        rows.append({
+            "country": country,
+            "source": source,
+            "offset_months": int(off),
+            "peak_date": str(prep["out_data"].get("peak_date"))[0:7],
+            "n_before": prep["out_data"].get("n_before_peak"),
+            "n_after": prep["out_data"].get("n_after_peak"),
+            "gamma_pre": g_pre,
+            "reject_pre": bool(reject_pre),
+            "gamma_post": g_post,
+            "reject_post": bool(reject_post),
+            "fell_below": ap.get("fell_below", False),
+            "delta": delta,
+            "delta_sign": delta_sign,
+            "delta_reported": dl.get("reported", False),
+        })
+
+    if output_dir is not None:
+        sens_dir = os.path.join(output_dir, "sensitivity")
+        os.makedirs(sens_dir, exist_ok=True)
+        safe_country = country.replace(" ", "_")
+        path = os.path.join(sens_dir, f"{source}_{safe_country}.json")
+        with open(path, "w") as f:
+            json.dump(rows, f, default=str, indent=4)
+        print(f"Saved peak sensitivity ({country}, {source}) -> {path}")
+
+    return rows

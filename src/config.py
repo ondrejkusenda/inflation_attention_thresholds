@@ -16,6 +16,10 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------------
 START_DATE = "2014-01-01"   # First month included in the sample.
 MAX_DATE = "2025-12-01"     # Last month included in the sample.
+PRE_2021_END = "2021-01-01" # Upper bound (exclusive) for the "normal-times"
+                            # pre-2021 average inflation used by the habituation
+                            # regression (section 3.1). The mean is taken over
+                            # [START_DATE, PRE_2021_END).
 DEFAULT_TRIM = 0.10         # Trimming fraction for the threshold candidate grid.
 DEFAULT_N_BOOTSTRAP = 5000  # Bootstrap / Monte-Carlo replications for p-values.
 SIGNIFICANCE_LEVEL = 0.10   # Level at which the Hansen / Chow tests reject.

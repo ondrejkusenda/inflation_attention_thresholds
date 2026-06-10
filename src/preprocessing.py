@@ -8,9 +8,10 @@ window around the country's inflation peak.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
-from config import START_DATE, MAX_DATE
+from config import START_DATE, MAX_DATE, PRE_2021_END
 
 
 def prepare_data(
@@ -23,6 +24,7 @@ def prepare_data(
     start_date: str = START_DATE,
     max_date: str = MAX_DATE,
     clean_outliers: bool = False,
+    peak_offset: int = 0,
 ) -> dict:
     """Build the merged analysis dataset for one country and attention source.
 
@@ -47,6 +49,12 @@ def prepare_data(
     clean_outliers : bool, optional
         If ``True``, drop inflation observations outside the 5th–95th
         percentile range. Defaults to ``False``.
+    peak_offset : int, optional
+        Shift the pre/post split point by this many observed months relative
+        to the inflation peak (Appendix A.9 peak-date sensitivity). ``0`` is
+        the baseline; ``+1`` / ``+2`` move the split later, ``-1`` / ``-2``
+        earlier. The shift is applied over observed months and clipped to the
+        sample so neither window becomes empty. Defaults to ``0``.
 
     Returns
     -------
@@ -111,9 +119,24 @@ def prepare_data(
             )
         ]
 
+    # Optional peak-date shift (Appendix A.9). Move the split point by
+    # ``peak_offset`` observed months, clipped so both windows stay non-empty.
+    if peak_offset != 0:
+        observed = dataset["TIME"].sort_values().unique()
+        pos = int(np.searchsorted(observed, np.datetime64(pd.Timestamp(peak))))
+        new_pos = int(np.clip(pos + peak_offset, 0, len(observed) - 1))
+        peak = pd.Timestamp(observed[new_pos])
+
     # Split into pre-peak (inclusive) and post-peak windows.
     before = dataset[dataset["TIME"] <= peak].reset_index(drop=True)
     after = dataset[dataset["TIME"] > peak].reset_index(drop=True)
+
+    # "Normal-times" average inflation over [start, PRE_2021_END), i.e. the
+    # pre-2021 mean used as the regressor in the habituation regression
+    # (section 3.1). This is distinct from inf_mean_pre-peak, which averages
+    # over the whole pre-peak window up to the ~2022 inflation peak.
+    pre_2021_inf = data_inf[data_inf["TIME"] < pd.Timestamp(PRE_2021_END)]["VALUE"]
+    inf_mean_pre_2021 = float(pre_2021_inf.mean()) if len(pre_2021_inf) else float("nan")
 
     return {
         "dataset_clean": dataset,
@@ -124,6 +147,7 @@ def prepare_data(
             "inf_mean": dataset["INFLATION"].mean(),
             "inf_mean_pre-peak": before["INFLATION"].mean(),
             "inf_mean_post-peak": after["INFLATION"].mean(),
+            "inf_mean_pre_2021": inf_mean_pre_2021,
             "n_before_peak": len(before),
             "n_after_peak": len(after),
             "peak_date": peak,

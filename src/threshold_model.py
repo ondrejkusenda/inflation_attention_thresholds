@@ -556,13 +556,69 @@ def chow_test_stacked(before_df, after_df, trim=DEFAULT_TRIM):
 
 
 
+def simulated_critical_value(x, level=SIGNIFICANCE_LEVEL, n_mc=2000,
+                             trim=DEFAULT_TRIM, seed=42):
+    """Design-specific Monte-Carlo critical value for the Hansen sup-F test.
+
+    The sup-F statistic ``n·(RSS_lin − RSS_thr)/RSS_thr`` is invariant to the
+    linear DGP's intercept, slope, and error variance (the regime regressions
+    absorb any ``α + β·x`` and the ratio cancels ``σ²``). Its null
+    distribution therefore depends only on the regressor design ``x`` and the
+    candidate grid, so it can be simulated by drawing ``y ~ N(0, 1)`` on the
+    fixed design. This is the same null used by :func:`asymptotic_pvalue`, so
+    rejecting at this critical value is exactly a Hansen test at ``level``.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Regressor / threshold variable defining the design.
+    level : float, optional
+        Test level; the returned value is the ``1 − level`` null quantile.
+        Defaults to :data:`config.SIGNIFICANCE_LEVEL` (0.10).
+    n_mc : int, optional
+        Monte-Carlo replications. Defaults to 2000.
+    trim : float, optional
+        Trimming fraction for the candidate grid.
+    seed : int, optional
+        RNG seed. Defaults to 42.
+
+    Returns
+    -------
+    float
+        The ``1 − level`` quantile of the null sup-F distribution; ``np.nan``
+        if no feasible draw is obtained.
+    """
+    n = len(x)
+    candidates = build_candidates(x, trim)
+    if len(candidates) < 3:
+        return np.nan
+
+    rng = np.random.default_rng(seed)
+    f_null = np.empty(n_mc)
+    f_null[:] = np.nan
+    for i in range(n_mc):
+        y_sim = rng.standard_normal(n)
+        rss_full = linear_rss(x, y_sim)
+        _, rss_thr, _ = grid_search_fast(x, y_sim, candidates)
+        if rss_thr == np.inf or rss_thr <= 0:
+            continue
+        f_null[i] = hansen_f_stat(rss_full, rss_thr, n)
+
+    f_null = f_null[~np.isnan(f_null)]
+    if len(f_null) == 0:
+        return np.nan
+    return float(np.quantile(f_null, 1.0 - level))
+
+
 def power_analysis_post_peak(
     before_df,
     after_df,
     gamma_pre,
     trim=DEFAULT_TRIM,
     n_sim=500,
-    andrews_critical=8.5,
+    critical_value=None,
+    level=SIGNIFICANCE_LEVEL,
+    n_mc_crit=2000,
     seed=42,
 ):
     """Power of the Hansen test on the post-peak window under the pre-peak DGP.
@@ -574,12 +630,12 @@ def power_analysis_post_peak(
          above ``gamma_pre``) to preserve heteroskedasticity, build a
          simulated ``y*`` at the realised post-peak inflation, and run the
          Hansen sup-F test.
-      3. Reject when ``F > andrews_critical`` (Andrews 1993 fast rule, roughly
-         the 10% level for the sup-F distribution).
-      4. Return the rejection frequency.
-
-    Andrews' fast rule replaces a nested bootstrap with near-identical
-    conclusions at a large speed-up.
+      3. Reject when ``F`` exceeds the simulated ``level`` critical value of
+         the sup-F null on the post-window design (see
+         :func:`simulated_critical_value`). This makes step 3 a proper Hansen
+         test at ``level`` — identical in level to the test used in the main
+         analysis — rather than a fixed cut-off.
+      4. Return the rejection frequency (the estimated power).
 
     Parameters
     ----------
@@ -591,16 +647,23 @@ def power_analysis_post_peak(
         Trimming fraction for the post-window candidate grid.
     n_sim : int, optional
         Number of simulations. Defaults to 500.
-    andrews_critical : float, optional
-        sup-F rejection cut-off. Defaults to 8.5.
+    critical_value : float, optional
+        sup-F rejection cut-off. If ``None`` (default) it is computed as the
+        simulated ``level`` critical value on the post-window design.
+    level : float, optional
+        Test level used when the critical value is simulated. Defaults to
+        :data:`config.SIGNIFICANCE_LEVEL` (0.10).
+    n_mc_crit : int, optional
+        Monte-Carlo replications for the critical value. Defaults to 2000.
     seed : int, optional
         RNG seed. Defaults to 42.
 
     Returns
     -------
     dict
-        Estimated power, simulation settings, regime counts, and a textual
-        interpretation. On failure returns a dict with an ``"error"`` key.
+        Estimated power, the critical value used, simulation settings, regime
+        counts, and a textual interpretation. On failure returns a dict with
+        an ``"error"`` key.
     """
     y_pre = before_df["INDEX"].values.astype(float)
     x_pre = before_df["INFLATION"].values.astype(float)
@@ -645,6 +708,18 @@ def power_analysis_post_peak(
     if len(cand_post) < 3:
         return {"error": "Too few candidates in post window"}
 
+    # Critical value: the simulated ``level`` quantile of the sup-F null on
+    # the post-window design (a proper Hansen test at ``level``), unless an
+    # explicit cut-off is supplied.
+    if critical_value is None:
+        crit = simulated_critical_value(
+            x_post, level=level, n_mc=n_mc_crit, trim=trim, seed=seed
+        )
+        if np.isnan(crit):
+            return {"error": "Could not simulate critical value"}
+    else:
+        crit = float(critical_value)
+
     below_mask = below_post.astype(bool)
     above_mask = above_post.astype(bool)
     n_below = int(below_mask.sum())
@@ -667,7 +742,7 @@ def power_analysis_post_peak(
             continue
 
         f_sim = hansen_f_stat(rss_full, rss_thr, n_post)
-        if f_sim > andrews_critical:
+        if f_sim > crit:
             n_reject += 1
 
     power = n_reject / n_sim
@@ -685,11 +760,80 @@ def power_analysis_post_peak(
         "n_below_post": n_below,
         "n_above_post": n_above,
         "gamma_dgp": float(gamma_pre),
-        "andrews_crit": andrews_critical,
+        "crit_value": float(crit),
+        "level": float(level),
         "interpretation": interp,
     }
 
 
+
+
+def habituation_regression(gamma_pre, mean_inflation, labels=None):
+    """Cross-country habituation regression (section 3.1).
+
+    Regresses the estimated pre-peak threshold on each country's "normal-times"
+    average inflation (the pre-2021 mean, ``out_data["inf_mean_pre_2021"]``):
+
+        γ_pre,c = a + b · mean_inflation_c + e_c
+
+    A positive, significant ``b`` is the habituation result: countries used to
+    higher inflation tolerate more before attention switches on. Standard
+    errors are heteroskedasticity-robust (HC1), matching the rest of the paper.
+
+    Parameters
+    ----------
+    gamma_pre : array_like
+        Estimated pre-peak thresholds, one per country.
+    mean_inflation : array_like
+        Pre-2021 average inflation, aligned with ``gamma_pre``.
+    labels : list of str, optional
+        Country labels, aligned with the inputs, echoed back in the result.
+
+    Returns
+    -------
+    dict
+        Slope (``beta``), its t-statistic and robust SE, intercept, R², sample
+        size, and the (cleaned) inputs. On failure returns a dict with an
+        ``"error"`` key.
+    """
+    g = np.asarray(gamma_pre, dtype=float)
+    m = np.asarray(mean_inflation, dtype=float)
+    if labels is None:
+        labels = [None] * len(g)
+    labels = list(labels)
+
+    finite = np.isfinite(g) & np.isfinite(m)
+    g, m = g[finite], m[finite]
+    kept_labels = [lab for lab, keep in zip(labels, finite) if keep]
+
+    if len(g) < 3:
+        return {"error": "Too few countries for habituation regression"}
+
+    fit = fit_ols(m, g)
+    if not np.isfinite(fit["coef"]) or not np.isfinite(fit["se_coef"]) \
+            or fit["se_coef"] == 0:
+        return {"error": "Habituation OLS infeasible"}
+
+    beta = fit["coef"]
+    t_stat = beta / fit["se_coef"]
+
+    # R² of the simple regression.
+    g_hat = fit["intercept"] + beta * m
+    ss_res = float(np.sum((g - g_hat) ** 2))
+    ss_tot = float(np.sum((g - g.mean()) ** 2))
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+    return {
+        "beta": float(beta),
+        "t_stat": float(t_stat),
+        "se_beta": float(fit["se_coef"]),
+        "intercept": float(fit["intercept"]),
+        "r_squared": float(r2),
+        "n": int(len(g)),
+        "labels": kept_labels,
+        "gamma_pre": g.tolist(),
+        "mean_inflation": m.tolist(),
+    }
 
 
 def run_threshold_analysis(prep, trim=DEFAULT_TRIM, n_bootstrap=1000):
