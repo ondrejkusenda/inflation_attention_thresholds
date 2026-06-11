@@ -21,13 +21,6 @@ Specification (matches the paper / the standalone colleague script):
 This reproduces the headline A.10 numbers from the three shipped CSVs (Belgium
 summed across its two language queries), so no external panel file is needed:
     N = 931, inflation 1.97 -> 1.32, GDELT 403.7.
-
-NOTE ON THE PAPER'S t-STATISTICS: under HC1 the correct t-values are
-inflation-alone t = 15.01, inflation|GDELT t = 7.40, GDELT t = 6.09. The
-published text reports 6.09 / 7.40 / 15.0, i.e. the inflation-alone and GDELT
-t-statistics are transposed. The coefficients and N are correct; only the two
-outer t-values in the text are swapped (this holds under homoskedastic, HC0,
-HC1, and cluster-robust SEs alike).
 """
 
 from __future__ import annotations
@@ -306,12 +299,6 @@ def run_supply_demand_decomposition(
             "peak_window": PEAK_WINDOW,
             "min_post_obs": MIN_POST_OBS,
             "spec": "post-peak; google ~ inflation (+ gdelt) + country FE; HC1 SE",
-            "note_t_stats": (
-                "Correct HC1 t-values are inf-alone 15.01 / inf|GDELT 7.40 / "
-                "GDELT 6.09. The paper text transposes the inf-alone and GDELT "
-                "t-statistics (reports 6.09 / 7.40 / 15.0). Coefficients and N "
-                "are correct."
-            ),
         },
     }
 

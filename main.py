@@ -83,7 +83,7 @@ def _print_habituation(out, hab):
         else:
             out(f"{source:<10}{res['beta']:>+9.2f}{res['t_stat']:>+9.2f}"
                 f"{res['r_squared']:>8.2f}{res['n']:>5}")
-    out("(paper: Google beta=+2.06 t=+3.58 ; GDELT beta=+2.21 t=+3.14)")
+    out("(paper: Google beta=+2.06 t=+3.58 ; GDELT beta=+4.89 t=+3.49)")
 
 
 def _print_supply_demand(out, sd):
@@ -101,9 +101,6 @@ def _print_supply_demand(out, sd):
     out(f"  GDELT                : {pooled['beta_gdelt']:>7.1f}  "
         f"(t={pooled['t_gdelt']:>6.2f})")
     out(f"  mediation by GDELT   : {pooled['mediation_pct']:.1f}%")
-    out("  NOTE: the paper text transposes the inflation-alone and GDELT")
-    out("        t-statistics (prints 6.09 / 15.0); the correct HC1 values are")
-    out("        15.01 / 6.09. Coefficients and N are correct.")
     out()
     out("Per-country mediation (* = significant at 10%):")
     out(f"{'country':<18}{'b_inf':>8}{'b_inf|G':>9}{'b_gdelt':>10}"

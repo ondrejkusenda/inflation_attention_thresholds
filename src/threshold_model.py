@@ -412,7 +412,9 @@ def threshold_regression_full(df, trim=DEFAULT_TRIM, n_bootstrap=1000):
     trim : float, optional
         Trimming fraction for the candidate grid.
     n_bootstrap : int, optional
-        Replications for both the bootstrap and asymptotic p-values.
+        Draw budget for the Hansen p-values. At the paper scale the residual
+        bootstrap uses min(n_bootstrap, 1999) draws and the asymptotic
+        Monte-Carlo uses 5000; below 1999 both scale to n_bootstrap.
 
     Returns
     -------
@@ -436,8 +438,15 @@ def threshold_regression_full(df, trim=DEFAULT_TRIM, n_bootstrap=1000):
     rss_full = linear_rss(x, y)
 
     f_stat = hansen_f_stat(rss_full, best_rss, n)
-    p_value = bootstrap_pvalue(x, y, f_stat, candidates, n_bootstrap)
-    p_value_asym = asymptotic_pvalue(x, y, f_stat, candidates, n_bootstrap)
+    # Paper settings: B = 1,999 residual-bootstrap draws and 5,000 asymptotic
+    # Monte-Carlo draws. ``n_bootstrap`` acts as a budget: at the paper scale
+    # (the default full run) the bootstrap is capped at 1,999 and the
+    # asymptotic uses 5,000; a smaller budget (e.g. ``--quick``) scales both
+    # down together so fast runs stay fast.
+    n_boot = min(n_bootstrap, 1999)
+    n_asym = 5000 if n_bootstrap >= 1999 else n_bootstrap
+    p_value = bootstrap_pvalue(x, y, f_stat, candidates, n_boot)
+    p_value_asym = asymptotic_pvalue(x, y, f_stat, candidates, n_asym)
 
     ci_low, ci_high = lr_confidence_interval(rss_grid, best_rss, candidates, n)
 
