@@ -208,11 +208,13 @@ Standard errors are heteroskedasticity-robust (HC1) throughout, including the
 supply/demand regressions. The grid search uses a 10/90 rank-based trim on the
 unique inflation values with a minimum of three observations per regime.
 
-**P-values.** Both the residual-bootstrap and the asymptotic (Gaussian-null
-Monte-Carlo) Hansen p-values are driven by a single replication count,
-`n_bootstrap` (default 5000, set in `config.py`; `--quick` lowers it to 200).
-The two procedures therefore use the same number of draws; there is no separate
-bootstrap-vs-asymptotic split.
+**P-values.** The Hansen test reports two p-values per window: a residual
+bootstrap and an asymptotic (Gaussian-null Monte-Carlo) p-value. At the paper
+scale these use **B = 1,999** bootstrap draws and **5,000** asymptotic draws
+respectively. The `n_bootstrap` setting (`config.py`; `--quick` lowers it to
+200) acts as a budget: a full run caps the bootstrap at 1,999 and runs the
+asymptotic at 5,000, while a smaller budget scales both down together so quick
+runs stay fast.
 
 **Power analysis (A.6).** The post-peak power simulation rejects each simulated
 series when its sup-F exceeds the **simulated 10 % critical value** of the
