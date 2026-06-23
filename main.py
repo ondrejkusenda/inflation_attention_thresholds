@@ -152,6 +152,19 @@ def _print_threshold_overview(out, results):
             f"post-peak rejections={rej_post:>3}/{n}")
     out("(full per-country detail is in results/summary_*.xlsx)")
 
+def _print_expectations(out, ok, skipped):
+    out()
+    out("=" * 72)
+    out("INFLATION EXPECTATIONS  (Appendix A.8):  Pfauti eq.(4), US, pre/post peak")
+    out("=" * 72)
+    if skipped:
+        out("skipped (--no-expectations)")
+    elif ok:
+        out("Estimated Michigan + NY Fed updating gains pre/post the 2022-06 peak.")
+        out("Full detail in results/expectations/ (figure, CSV, SUMMARY_eq4.txt).")
+    else:
+        out("not produced (data download failed; see console log above)")
+
 
 def _parse_args(argv=None):
     p = argparse.ArgumentParser(
@@ -170,6 +183,11 @@ def _parse_args(argv=None):
     p.add_argument(
         "--no-plots", action="store_true",
         help="Skip all figure generation (faster; tables still produced).",
+    )
+    p.add_argument(
+        "--no-expectations", action="store_true",
+        help="Skip the Pfauti eq.(4) expectations appendix (A.8), which "
+             "downloads FRED / NY Fed data on first run.",
     )
     return p.parse_args(argv)
 
@@ -226,6 +244,19 @@ def main(argv=None) -> None:
             n_bootstrap=n_bootstrap,
             output_dir=RESULTS_DIR,
         )
+
+    # 2d. Inflation expectations: Pfauti eq.(4) pre/post-peak (Appendix A.8).
+    #     Self-contained; downloads FRED / NY Fed data on first run and writes
+    #     to results/expectations/. Guarded so a download failure never kills
+    #     the main run. (--quick does not speed this up; it has no bootstrap budget.)
+    eq4_ok = False
+    if not args.no_expectations:
+        try:
+            from src.pfauti_eq4 import main as run_pfauti_eq4
+            run_pfauti_eq4()
+            eq4_ok = True
+        except Exception as exc:  # noqa: BLE001 - log and continue the run.
+            print(f"\n[expectations A.8] skipped: {exc}")
 
     # 3. Cross-country threshold scatter plots.
     if make_plots:
@@ -285,6 +316,7 @@ def main(argv=None) -> None:
     _print_habituation(out, habituation)
     _print_supply_demand(out, sd)
     _print_peak_sensitivity(out, sensitivity)
+    _print_expectations(out, eq4_ok, args.no_expectations)
 
     out()
     out("Replication complete. Figures, tables and SUMMARY.txt are in results/.")

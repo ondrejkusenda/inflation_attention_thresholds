@@ -59,6 +59,7 @@ runs end-to-end with a single command (`python main.py`).
 | Threshold gap Δ = γ_post − γ_pre | `threshold_model.run_threshold_analysis` |
 | Stacked Chow test (App. A.5) | `threshold_model.chow_test_stacked` |
 | Power analysis, simulated 10 % critical value (App. A.6) | `threshold_model.power_analysis_post_peak`, `threshold_model.simulated_critical_value` |
+| Inflation expectations: Pfäuti eq. (4), US pre/post-peak (App. A.8) | `pfauti_eq4.py` (self-contained; run by `main.py`) |
 | Peak-date sensitivity (App. A.9) | `pipeline.run_peak_sensitivity` (via `preprocessing.prepare_data(..., peak_offset=k)`) |
 | Supply/demand decomposition (App. A.10) | `supply_demand_decomposition.run_supply_demand_decomposition` |
 | Habituation regression (§3.1) | `threshold_model.habituation_regression` (driven across countries in `pipeline.run_all_sources`) |
@@ -76,7 +77,8 @@ inflation_attention_thresholds/
 ├── data/                     # Input CSVs (see data/README.md for schema)
 │   ├── INFLATION_DATA.csv    # OECD MEI headline inflation (HICP / CPI)
 │   ├── GOOGLE_DATA.csv        # Google Trends "inflation" search index
-│   └── GDELT_DATA.csv         # GDELT news-coverage share
+│   ├── GDELT_DATA.csv         # GDELT news-coverage share
+│   └── expectations/         # Cached FRED / NY Fed series for Appendix A.8 (auto-downloaded)
 ├── results/                  # Generated outputs (created on run)
 │   ├── google/
 │   │   ├── raw_results/      # Per-country JSON
@@ -89,7 +91,8 @@ inflation_attention_thresholds/
 │   ├── supply_demand_decomposition.json        # A.10 pooled + classification
 │   ├── supply_demand_country_regressions.csv   # A.10 per-country table
 │   ├── threshold_scatter_*.pdf                  # Figure 2
-│   └── SUMMARY.txt            # Consolidated console summary of every result
+│   ├── expectations/         # Appendix A.8: Pfäuti eq. (4) figure, CSV, SUMMARY_eq4.txt
+│   └── SUMMARY.txt           # Consolidated console summary of every result
 ├── src/
 │   ├── config.py             # Palette, plot style, country metadata, constants
 │   ├── data_loading.py       # CSV readers with schema validation
@@ -97,7 +100,8 @@ inflation_attention_thresholds/
 │   ├── threshold_model.py    # Hansen model, Chow test, power, habituation
 │   ├── supply_demand_decomposition.py  # Appendix A.10
 │   ├── plotting.py           # All publication figures
-│   └── pipeline.py           # Per-country, full-run, and sensitivity drivers
+│   ├── pipeline.py           # Per-country, full-run, and sensitivity drivers
+│   └── pfauti_eq4.py         # Appendix A.8: Pfäuti eq. (4) expectations (self-contained)
 ├── main.py                   # Single-command replication entry point
 ├── requirements.txt
 └── README.md
@@ -120,6 +124,11 @@ The three input files share the schema `GEO` / `TIME` / `VALUE`. As in the paper
 
 The sample runs through December 2025.
 
+The expectations appendix (A.8, `src/pfauti_eq4.py`) uses three additional US
+series — Michigan median 1y expected inflation (FRED `MICH`), US CPI (FRED
+`CPIAUCSL`), and NY Fed SCE median 1y expected inflation. These are **downloaded
+automatically** on the first run and cached in `data/expectations/`, so the main
+run needs network access once (or run with `--no-expectations` to skip it).
 ---
 
 ## Installation
@@ -158,6 +167,7 @@ headline number is also printed to the console and written to
 | `--quick` | Fast sanity run (`--bootstrap 200`). Headline coefficients are stable; borderline p-values are noisier. |
 | `--bootstrap N` | Set the bootstrap / Monte-Carlo replication count explicitly. |
 | `--no-plots` | Skip all figures (tables and JSON still produced). Fastest. |
+| `--no-expectations` | Skip the Pfäuti eq. (4) expectations appendix (A.8). Use this offline — it's the only step that downloads data. |
 
 The full run is computationally heavy because of the bootstrap and
 Monte-Carlo p-values; `--quick` is recommended for a first pass.
